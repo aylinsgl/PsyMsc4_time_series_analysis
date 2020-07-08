@@ -1,0 +1,168 @@
+---
+title: "Part 1"
+author: "Aylin Kallmayer"
+date: "7/7/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Read in some arbitrary time series data from the internet, age of death of 42 successive kings of England 
+
+```{r kings}
+kings2 <- c(60,43,67,50,56,42,50,65,68,43,65,34,47,34,49,41,13,35,53,56,16,43,69,59,48,59,86,55,68,51,33,49,67
+            ,77,81,67,71,81,68,70,77,56)
+kingsts <- ts(kings2)
+
+kings <- scan("http://robjhyndman.com/tsdldata/misc/kings.dat",skip=3)
+```
+
+To make things a bit simpler we will store this data in one of the many time series objects in r and plot the time series
+
+```{r plot ts}
+kingstimeseries <- ts(kings)
+
+plot.ts(kingstimeseries)
+```
+
+Ok, this gives us an event for every death, lets try out the same thing for MONTHLY birth frequency in New York, so from "deaths in the Brity" we move to "sex in the city" (lol).  
+**Note:** a shiny app I created for playing around with sampling frequency and smoothing can be found here: https://aylinka.shinyapps.io/shiny_Msc4/
+
+```{r load births}
+births <- scan("http://robjhyndman.com/tsdldata/data/nybirths.dat")
+save(births, file = "births.rda")
+```
+
+Keep in mind that data was collected from 1946 every month.
+
+```{r plot birthseries}
+birthstimeseries <- ts(births, frequency = 12, start=c(1946,1))
+plot.ts(birthstimeseries)
+```
+
+This is interesting! but I am getting dizzy from all these squigly lines. Seems like the same things is hapenning all the time: there is a peak every summer, and going down every winter. Lets imagine we only had data once a year, so instead of having 12 data points for each of the 14 years we would have only 1. Or, instead of having 168 points we would have:
+
+```{r new freq}
+(sampling_frequency <- 168/12)
+```
+
+So what happens if we down-sample to 1 time per year?
+
+```{r downsampling}
+x <- as.matrix(birthstimeseries)
+n <- as.integer(sampling_frequency[1])
+if (n < 2L) 
+  stop("Input 'n' must be a positive integer greater than 1.")
+N <- nrow(x)
+d <- (N - 1)/(n - 1)
+t <- seq(1, N, by = d)
+tf <- floor(t)
+tc <- ceiling(t)
+downsampled <- x[tf, ] + (x[tc, ] - x[tf, ]) * (t - tf)
+plot.ts(ts(downsampled, frequency = 1, start=c(1946,1)))
+```
+
+What we did here is called Linear Length Normalization (https://www.sciencedirect.com/science/article/pii/S0021929010005038?via%3Dihub). Please make a function called "downsample" out of this in order to easily use it. Now try different sampling freuqncy and see how  the change the interpretation of the data e.g. once every 6 months or once every 3 months.
+
+```{r downsample function}
+downsample <- function(y, n){
+  x <- as.matrix(y)
+  if (n < 2L) 
+    stop("Input 'n' must be a positive integer greater than 1.")
+  N <- nrow(x)
+  d <- (N - 1)/(n - 1)
+  t <- seq(1, N, by = d)
+  tf <- floor(t)
+  tc <- ceiling(t)
+  downsampled <- x[tf, ] + (x[tc, ] - x[tf, ]) * (t - tf)
+  return(downsampled)
+}
+```
+
+Sampling frequency of once every 6 months:
+
+```{r plot every 6 months}
+newsampled <- downsample(birthstimeseries,28)
+plot.ts(ts(newsampled, frequency = 2, start=c(1946,1)))
+```
+
+Sampling frequency every 3 months:
+
+```{r plot every 3 months}
+newsampled <- downsample(birthstimeseries, 56)
+plot.ts(ts(newsampled, frequency = 4, start=c(1946,1)))
+```
+
+OK, so when we can down-sample, but we can also smooth the data, lets see what the difference is. We need another package to do this.
+
+```{r smoothing}
+library(TTR)
+birthstsmooth<-SMA(birthstimeseries,n=12)
+plot.ts(birthstsmooth) 
+```
+
+Q: How is this different than before?
+
+A: Instead of only looking at e.g. one sample each year which might be more or less representative for the rest of the year, this approach "smoothes" the data by calculating the mean over the past n observations (in this case 12). So for each point the average of the past 12 points is given which has the advantage that it preserves more information than the downsampling while still reducing the information to a more interpretable level.
+
+Now lets look at single components of the time series:
+
+```{r single component}
+birthstimeseriescomponents <- decompose(birthstimeseries)
+plot(birthstimeseriescomponents)
+```
+
+Q: What are we seeing here?
+A:
+observed - non-smoothed, non-downsampled data.
+trend - similar to what we did with the SMA function, this again uses a moving average computation.
+seasonal - averaging over each time unit over all periods. So the observation for January is the average of all observations of January over the 14 years (and then its centered).
+random - it shows the error component, whats left after removing the trend and seasonal components from the original time series.
+
+Now repeat for the MONTHLY sales for a souvenir shop at a beach resort town in Queensland, Australia, starting 1987.
+So plot it, smooth it, decompose it and down-sample to e.g. once every 6 months.
+
+```{r souveniers}
+load(file = "souvenir.Rdat")
+souv_ts <- ts(souvenir, frequency = 12, start=c(1987,1))
+plot.ts(souv_ts)
+```
+
+Downsampling it to once a year:
+
+```{r downsample}
+souv_down <- downsample(souvenir, 7)
+plot.ts(ts(souv_down, frequency = 1, start=c(1987,1)))
+```
+
+Downsampling to every 3 months:
+
+```{r downsample 2}
+souv_down <- downsample(souvenir, 28)
+plot.ts(ts(souv_down, frequency = 4, start=c(1987,1)))
+```
+
+Smoothing it (average over past 12 observations):
+
+```{r}
+souv_smooth<-SMA(souv_ts,n=12)
+plot.ts(souv_smooth) 
+```
+
+Smoothing it (average over past 3 observations):
+
+```{r}
+souv_smooth<-SMA(souv_ts,n=3)
+plot.ts(souv_smooth) 
+```
+
+Decompose:
+
+```{r decompose}
+souv_decomp <- decompose(souv_ts)
+plot(souv_decomp)
+```
+
+

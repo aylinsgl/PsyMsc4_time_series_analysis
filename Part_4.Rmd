@@ -1,0 +1,91 @@
+---
+title: "Part-4"
+author: "Aylin Kallmayer"
+date: "7/8/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE)
+if (!require("devtools")) {
+  install.packages("devtools", dependencies = TRUE)}
+devtools::install_github("SebastianKorinth/eyEdu") 
+library(eyEdu)
+```
+
+Applying the steps learnt in part three on the search experiment:  
+```{r}
+EyEduGetExamples(experiment.type = "search")
+raw.data.path <- paste(getwd(),"/exampleDataSearchExperiment-master/", sep = "")
+EyEduImportEyetribeData()
+```
+
+Plotting a single trial:  
+```{r, warning=FALSE}
+EyEduPlotTrial(participant.nr = 1, 
+               trial.nr = 1)
+```
+
+Applying a filter and plotting the same trial with filtered data:  
+```{r, warning=FALSE}
+EyEduLowPassFilter()
+EyEduPlotTrial(participant.nr = 1, 
+               trial.nr = 1,
+               show.filtered = TRUE)
+```
+
+Looks much less squiggly now :P
+
+Detect fixations:  
+Now plotting a different trial to keep things from geting boring.  
+```{r, warning=FALSE}
+EyEduDetectFixationsIDT(dispersion.var = 90,duration.var = 6,use.filtered = F)
+EyEduPlotTrial(participant.nr = 1, 
+               trial.nr = 3)
+```
+
+Now, checking whether fixation detection was succesful on different trials:  
+```{r, warning=FALSE}
+EyEduPlotDiagnostics(participant.nr = 1,
+                     trial.nr = 1,sample.length = 2500, show.filtered = F)
+EyEduPlotDiagnostics(participant.nr = 1,
+                     trial.nr = 2,sample.length = 2500, show.filtered = F)
+EyEduPlotDiagnostics(participant.nr = 1,
+                     trial.nr = 3,sample.length = 2500, show.filtered = F)
+```
+
+Visually, it seems like the detection didnt work quite as well for this participant. Lets check out another participant:  
+```{r}
+EyEduPlotDiagnostics(participant.nr = 4,
+                     trial.nr = 1,sample.length = 2500, show.filtered = F)
+```
+
+Not great either, but maybe a bit better than for participant 1?
+
+Plotting AOIs:  
+```{r}
+EyEduImportAoIs(append.aois = FALSE,
+                delete.existing.aois = TRUE ,
+                screen.align.x = 1024,
+                screen.align.y = 768)
+
+EyEduAssignFixationsAois()
+```
+
+```{r, warning=FALSE}
+EyEduPlotTrial(participant.nr = 1, 
+               trial.nr = 3,
+               fix.color = "green",
+               show.filtered = FALSE,
+               aoi.color = "black")
+```
+
+Get fixation summary:  
+```{r}
+EyEduGetFixationSummary()
+load("exampleDataSearchExperiment-master/fixation_summary.Rda")
+fixation.summary[100:109,]
+```
+
+Note: somehow drawing AOIs doesnt work and the assigned AOIs dont show up in the fixation summary ... :/ 
