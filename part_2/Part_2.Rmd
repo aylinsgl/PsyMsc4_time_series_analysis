@@ -1,0 +1,260 @@
+---
+title: "Part_2"
+author: "Aylin Kallmayer"
+date: "7/7/2020"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Lets do a quck reminder of sampling rate and downsampling. First, create matrix with N = 500 time points and 2 columns
+
+```{r create data}
+N <- 1000
+x <- cbind(sin(2 * pi * seq(0, 1, length.out = N)),
+           sin(4 * pi * seq(0, 1, length.out = N)))
+plot(x[,1])
+plot(x[,2])
+```
+
+Here is the downsampling function again. Use it to downsample to n=90
+
+```{r downsample}
+downsample <- function(y, n){
+  x <- as.matrix(y)
+  if (n < 2L) 
+    stop("Input 'n' must be a positive integer greater than 1.")
+  N <- nrow(x)
+  d <- (N - 1)/(n - 1)
+  t <- seq(1, N, by = d)
+  tf <- floor(t)
+  tc <- ceiling(t)
+  downsampled <- x[tf, ] + (x[tc, ] - x[tf, ]) * (t - tf)
+  return(downsampled)
+}
+
+y <- downsample(x, n = 90)
+
+plot.ts(ts(y))
+```
+
+Now we will look at actual eye tracking data. This comes from a VR task in which participants had to make a saccade eihter to the left or right. Inspect the data and make sense of it.
+
+```{r VR data}
+data <- read.csv("Part2_VRdata.csv", sep = "\t", header = T)
+head(data,10)
+summary(data)
+```
+
+Q: Can you tell from the data what the approx. sampling frequency is?  
+A: approximately 90Hz, because there are roughly 90 observations before a second passes.  
+Lets try to start playing with the data and vizualizing it. Plot eye coordinates
+
+```{r eye}
+library(ggplot2)
+ggplot(data, aes(x=eyeX, y=eyeY)) +
+    geom_point(alpha = .25)
+```
+
+We will have 2 aims here:  
+Aim nr 1: look at the time course of the gaze coordinate  
+Aim nr 2: look at the time spend fixating each item  
+
+A big part of data analysis is pre-processing, getting the data in some raw format and translating it to smth usable. Certain hardware & software can take over these steps for you. It depends on what exactly you are working with but we start from scrath in order to conceptualize certain steps.  
+Currently you see that you have a gaze coordinate sample for each time point per trial. If we want to do smth like vizualize the time course we might want to use the avg across trials. For this we can aggregate. First we need smth which tracks the progression of time in each trial.
+
+```{r pre}
+data$trialtime<-sequence(rle(as.character(data$trial))$lengths)
+
+```
+
+Now we can aggreagate the avg position for each time point across trials
+
+```{r agg}
+agg <- aggregate(cbind(eyeX,eyeY)~trialtime, mean, data=data)
+```
+
+Lets have a look at the original data set:
+
+```{r plotorig}
+ggplot(data, aes(x = trialtime*11.1, y = eyeX)) + 
+  geom_line(alpha = 0.2)
+```
+
+Now lets look at the aggreagated data!
+
+```{r plotagg}
+ggplot(agg, aes(x = trialtime*11.1, y = eyeX)) + 
+  geom_line(alpha = 0.2)
+```
+
+Do you see what issue we have here? We are averaging saccades to the left and saccade to the right trials. The clever experiment has assigned triggers 131 for left and 132 to right but we are not really making use of this.  
+
+## Epoching  
+So lets first mark the time points in our data that we need, this is called epoching. Traditionally we "cut" some time before and some time after an event of interest.
+
+```{r epo}
+windowsize = 1500 # e.g. from -200 to 1300
+base = 200
+refreshrate = 90
+(each = windowsize/(1000/refreshrate)) 
+(from = base/(1000/refreshrate))
+(to = each-from)
+```
+
+Epoching around 131/132 triggers:  
+```{r triggers1}
+data$epochFrame <- NA
+data$epochFrame[rep(which(data$trigger == 131), each=each+1) + -from:to] <- -from:to # + 1 because 0 is in the windowsize
+```
+
+Do the same for the 132 trigger:  
+```{r triggers2}
+data$epochFrame[rep(which(data$trigger == 132), each=each+1) + -from:to] <- -from:to # + 1 because 0 is in the windowsize
+```
+
+Now we want to tag each of these samples with the appropriate condition:  
+```{r tag}
+data$condition <- NA 
+data$condition[rep(which(data$trigger == 131), each=each+1) + -from:to]  <- "item L"
+```
+
+Do the same for the "item R" condition:  
+```{r tag2}
+data$condition[rep(which(data$trigger == 132), each=each+1) + -from:to]  <- "item R"
+```
+
+Now aggregate and plot this similar to above, but including our new variables:  
+```{r plot}
+agg2 <- aggregate(cbind(eyeX,eyeY)~trialtime+condition+epochFrame, mean, data=data)
+ggplot(agg2, aes(x = epochFrame, y = eyeX, color=condition)) + 
+  geom_line(size=1)
+```
+ 
+## Baselining  
+Last but not least we have to face an issue which we might have in all time-series problems: stocks, eye tracking, eeg, etc.
+And that is that we are usually interested how smth changes at a specific event e.g. apple stock at the introduction of iphone, eeg signal at the onset of an congruent or incongruent object. What we need to consider in order to appropriately compare thee eeg signal to congruent or incongruent objects is the baseline eeg activity before the object was presented. In our current data this does not seem to be a big issue - you see that the for both conditions the x position of the y is pretty much at zero (fixation cross). This is likely due to the fact that the experiment is an evil genius and makes amazing experiments and paradigms. But sometimes life is messier, lets introduce some noise in the data so that we can vizualize the problem.  
+
+```{r noise}
+data$noisyX <- data$eyeX +  runif(length(data$eyeX), min = -0.1, max = 0.5)
+```
+
+Aggregate and vizualize this new variable in the same way as above to see how it changed:
+
+```{r agg noise}
+agg3 <- aggregate(cbind(noisyX,eyeY)~trialtime+condition+epochFrame, mean, data=data)
+ggplot(agg3, aes(x = epochFrame, y = noisyX, color=condition)) + 
+  geom_line(size=1)
+```
+
+In order to base line we need to do smth which is conceptually quite easy to understand, essentially we want to substract the avg value for our variable of interest within the baseline period from the rest of the values. In our case we can say, take the avg value btw -200 and 0ms for each trial and each condition and subtract from the values in the interesting time frame - after we showed the cue. A baseline function is implemented in many big eeg packages, but seldomly people think about it in eye-tracking - it can however be important. We will implement it here in a hopefully straigth forward way.
+
+First we need to get the data from the baseline period  
+```{r}
+baseline <- data[data$epochFrame<0 & !is.na(data$epochFrame),] # that leaves us with 900 observations!
+```
+
+Now we can get the mean value for each trial:  
+```{r}
+agg.base <- aggregate(noisyX ~ trial+condition, mean, data=baseline)
+```
+
+Merge the two data frames by their common columns:  
+```{r}
+data2 <- merge(data,agg.base, by = c("trial", "condition"), all = T)
+data2$baselinedX <- data2$noisyX.x-data2$noisyX.y
+```
+
+Now plot this new baselined variable like above:  
+```{r}
+agg4 <- aggregate(cbind(baselinedX,eyeY)~ condition+trialtime+epochFrame, mean, data=data2 )
+ggplot(agg4, aes(x = epochFrame, y = baselinedX, color=condition)) + 
+  geom_line(size=1)
+```
+
+## Fixation durations  
+Instead of looking at the time course of the movement we will now look at the time people spend looking at the items. This is when the assumptions begin. We need to make some in order to be able to quantify such a metric.  
+First thing we need is an area of interest (abbreviated AOI or IA). This area should encompass the thing (e.g. object, part of the face, word, etc.) which we are interested in, in our case there either was a bar presented on the left or on the right. These bars were presented at a distance of 1.0m from the fixation point, each bar was 0.5 meters tall and 0.1 wide, lets create a variable which codes the x, y and z coordinates of the interes area. In our case we are most interested in the x coordinate but we will try to find a general soultion here.
+
+```{r}
+data$AOIx <- NA
+data$AOIy <- 1.25
+data$AOIz <- 2.0
+data$AOIx[data$condition=="item R"] <- 1.0
+data$AOIx[data$condition=="item L"] <- -1.0
+```
+
+Now we can calculate the distance of every fixation to the target_Position. There is no need to panic; this is just Pythagoras' theorem.
+https://www.pacificlearningacademy.com/the-3d-pythagorean-theorem/.  
+It is written down in a slightly less straightforward way than the familiar a² + b² = c². If you work from the inside out, you can see that first both the horizontal and the vertical distance between the fixation position and the AOI center coordinate is calculated. When the horizontal distance and the vertical distance are calculated, they are both squared (^2) and then summed. You now have a2 + b2, which means, as  you know, c2 (since a2 + b2 = c2). The only thing you need to do is calculate the square root of c2 to know c,
+which is the distance between the fixation position and the AOI coordinate.
+
+```{r}
+data$target_distance <- sqrt((data$eyeX-data$AOIx)^2 + (data$eyeY-data$AOIy)^2 + (data$eyeZ-data$AOIz)^2)
+```
+
+Now aggregate and plot the new target distance variable as you did the eyeX variable before.  
+```{r}
+agg <- aggregate(target_distance~trialtime+condition+epochFrame, mean, data=data)
+ggplot(agg, aes(x = epochFrame, y = target_distance, color = condition)) + 
+  geom_line()+
+  theme_classic()+
+  labs(y="Target distance", x="Trial time")+
+  scale_color_manual(values=c("#e7bb41", "#533a71"))
+
+```
+
+Now we can use the distance variable to decide if a gaze sample fell into the interest area or not. This of course is somehow arbitrary... in our case the bar could be rotated until fully horizontal, this would mean that at certain trials the bar would extend 0.25m towards the fixation cross
+lets use this as our cut-off then - sounds reasonable, but ideally we have decided this before running the experiment.  
+```{r}
+data$AOI <- "other"
+data$AOI[data$target_distance > 0.90 & data$target_distance < 1.1] <- "cross"
+data$AOI[data$target_distance < 0.25] <- "target"
+```
+
+Lets try to make sense of what we did here. Pls aggregate and plot the new target distance variable. Dont forget to include your new AOI variable!
+google "ggplot facet_grid" to find a good way to plot it.  
+```{r, fig.width=10}
+agg2 <- aggregate(target_distance~trialtime+condition+AOI+epochFrame, mean, data=data)
+ggplot(agg2, aes(x = epochFrame, y = target_distance, color = condition)) + 
+  facet_grid(~AOI)+
+  geom_line()+
+  theme_classic()+
+  labs(y="Target distance", x="Trial time")+
+  scale_color_manual(values=c("#e7bb41", "#533a71"))
+```
+
+We can also collapse accross time points to get the duration people spend looking at the items:  
+```{r}
+agg3 <- aggregate(target_distance~condition+AOI, length, data=data)
+```
+
+Use geom_point to plot the distances:  
+```{r}
+ggplot(agg3, aes(x = condition, y = target_distance, color = AOI, group=AOI)) + 
+  geom_point(size=5)+
+  geom_line()+
+  theme_classic()+
+  labs(y="Target distance", x="Condition") +
+  scale_color_manual(values=c("#bfedc1", "#533a71","#92dce5"))
+```
+
+We can also look at how long it took people to get to the right vs. left target:  
+```{r}
+agg4 <- aggregate(epochFrame~condition+AOI, min, data=data)
+
+ggplot(agg4, aes(x = condition, y = epochFrame, color = AOI, group=AOI)) + 
+  geom_point(size=7)+
+  geom_line()+
+  theme_classic()+
+  labs(y="Frames passed", x="Condition")+
+  scale_color_manual(values=c("#bfedc1", "#533a71","#92dce5"))
+```
+
+
+Q: What are the "cross" and "other" conditions telling us?  
+A: People looked at the cross BEFORE they moved their eyes to the target. That's why "negative" frames have passed. Then, once the target appeared they either looked directly at it or somewhere else first.
