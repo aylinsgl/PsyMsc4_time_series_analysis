@@ -2,7 +2,9 @@
 title: "Part 1"
 author: "Aylin Kallmayer"
 date: "7/7/2020"
-output: html_document
+output:
+  html_document:
+    df_print: paged
 ---
 
 ```{r setup, include=FALSE, message=FALSE}
@@ -103,8 +105,7 @@ birthstsmooth<-SMA(birthstimeseries,n=12)
 plot.ts(birthstsmooth) 
 ```
 
-Q: How is this different than before?
-
+Q: How is this different than before?  
 A: Instead of only looking at e.g. one sample each year which might be more or less representative for the rest of the year, this approach "smoothes" the data by calculating the mean over the past n observations (in this case 12). So for each point the average of the past 12 points is given which has the advantage that it preserves more information than the downsampling while still reducing the information to a more interpretable level.
 
 Now lets look at single components of the time series:
@@ -114,8 +115,8 @@ birthstimeseriescomponents <- decompose(birthstimeseries)
 plot(birthstimeseriescomponents)
 ```
 
-Q: What are we seeing here?
-A:
+Q: What are we seeing here?  
+A:  
 observed - non-smoothed, non-downsampled data.
 trend - similar to what we did with the SMA function, this again uses a moving average computation.
 seasonal - averaging over each time unit over all periods. So the observation for January is the average of all observations of January over the 14 years (and then its centered).
