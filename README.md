@@ -1,6 +1,6 @@
 # PsyMsc4 time series analysis  
 
-[Links to all notebooks](https://aylinsgl.github.io/PsyMsc4_time_series_analysis/)  
+[View notebooks here](https://aylinsgl.github.io/PsyMsc4_time_series_analysis/)  
 
 These are my R markdown notebooks for the scripts used in a seminar on time series analysis by [Dejan Draschkow](https://github.com/DejanDraschkow) (2019) using the [eyEdu package](https://github.com/SebastianKorinth/eyEdu).
 
