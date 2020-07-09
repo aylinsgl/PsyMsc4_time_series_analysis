@@ -2,9 +2,7 @@
 title: "Part-3"
 author: "Aylin Kallmayer"
 date: "7/7/2020"
-output:
-  html_document:
-    df_print: paged
+output: html_notebook
 ---
 
 ```{r setup, include=FALSE}

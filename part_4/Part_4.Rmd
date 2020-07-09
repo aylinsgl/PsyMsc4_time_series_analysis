@@ -2,9 +2,7 @@
 title: "Part-4"
 author: "Aylin Kallmayer"
 date: "7/8/2020"
-output:
-  html_document:
-    df_print: paged
+output: html_notebook
 ---
 
 ```{r setup, include=FALSE}
@@ -18,7 +16,6 @@ library(eyEdu)
 
 Applying the steps learnt in part three on the search experiment:  
 ```{r}
-EyEduGetExamples(experiment.type = "search")
 raw.data.path <- paste(getwd(),"/exampleDataSearchExperiment-master/", sep = "")
 EyEduImportEyetribeData()
 ```
